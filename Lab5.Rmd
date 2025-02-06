@@ -1,6 +1,5 @@
 ---
 output:
-  pdf_document: default
   html_document: default
 ---
 ```{r}
@@ -139,5 +138,33 @@ leaflet() %>%
                    color = "blue", radius = 5, popup = ~paste("Station:", USAF)) %>%
   # Optionally add a legend
   addLegend(position = "bottomright", colors = c("red", "blue"), labels = c("Representative Station", "Closest to Midpoint"))
+```
+```{r}
+# Compute the average temperature for each state
+state_avg_temp <- merged_data[, .(avg_temp = mean(temp, na.rm = TRUE)), by = STATE]
+
+# Classify the states based on average temperature
+state_avg_temp[, temp_level := fcase(
+  avg_temp < 20, "Low",
+  avg_temp >= 20 & avg_temp < 25, "Mid",
+  avg_temp >= 25, "High"
+)]
+
+# Merge the temp_level classification with the original dataset
+merged_data_with_level <- merge(merged_data, state_avg_temp[, .(STATE, temp_level)], by = "STATE")
+
+# Generate summary table by average temperature level
+summary_table <- merged_data_with_level[, .(
+  num_records = .N,  # Number of records (entries)
+  num_na = sum(is.na(temp)),  # Number of NA entries for temperature
+  num_stations = uniqueN(USAF),  # Number of stations
+  num_states = uniqueN(STATE),  # Number of states included
+  mean_temp = mean(temp, na.rm = TRUE),  # Mean temperature
+  mean_wind = mean(wind.sp, na.rm = TRUE),  # Mean wind speed
+  mean_pressure = mean(atm.press, na.rm = TRUE)  # Mean atmospheric pressure
+), by = temp_level]
+
+# Print the summary table
+summary_table
 ```
 
