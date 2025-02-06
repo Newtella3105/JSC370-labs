@@ -1,0 +1,143 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r}
+options(repos = c(CRAN = "https://cloud.r-project.org/"))
+install.packages("data.table")
+install.packages("dtplyr")
+install.packages("dplyr")
+install.packages("R.utils")
+install.packages("leaflet")
+```
+```{r}
+library(data.table)
+library(dtplyr)
+library(dplyr)
+library(leaflet)
+```
+```{r}
+download.file("https://raw.githubusercontent.com/JSC370/JSC370-2025/main/data/met/met_all.gz", destfile = "met_all.gz")
+met <- fread("met_all.gz")
+
+stations <- fread("ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-history.csv")
+
+stations[, USAF := as.integer(USAF)]
+
+# Dealing with NAs and 999999
+stations[, USAF   := fifelse(USAF == 999999, NA_integer_, USAF)]
+stations[, CTRY   := fifelse(CTRY == "", NA_character_, CTRY)]
+stations[, STATE  := fifelse(STATE == "", NA_character_, STATE)]
+
+# Selecting the three relevant columns, and keeping unique records
+stations <- unique(stations[, list(USAF, CTRY, STATE)])
+
+# Dropping NAs
+stations <- stations[!is.na(USAF)]
+
+# Removing duplicates
+stations[, n := 1:.N, by = .(USAF)]
+stations <- stations[n == 1,][, n := NULL]
+```
+```{r}
+# Rename USAFID in 'met' to USAF
+setnames(met, "USAFID", "USAF")
+
+merged_data <- met %>%
+  left_join(stations, by = "USAF")
+```
+
+```{r}
+head(merged_data)
+```
+
+```{r}
+# Calculate the median of temperature, wind speed, and atmospheric pressure
+median_temp <- quantile(merged_data$temp, 0.5, na.rm = TRUE)
+median_wind <- quantile(merged_data$wind.sp, 0.5, na.rm = TRUE)
+median_pressure <- quantile(merged_data$atm.press, 0.5, na.rm = TRUE)
+
+# Find stations with the median temperature, wind speed, and atmospheric pressure
+station_median_temp <- merged_data[abs(merged_data$temp - median_temp) < 0.01, .(USAF, temp)]
+station_median_wind <- merged_data[abs(merged_data$wind.sp - median_wind) < 0.01, .(USAF, wind.sp)]
+station_median_pressure <- merged_data[abs(merged_data$atm.press - median_pressure) < 0.01, .(USAF, atm.press)]
+
+# Print the stations with median values
+print(station_median_temp)
+print(station_median_wind)
+print(station_median_pressure)
+
+# Check if the stations with median values coincide
+coincide_stations_temp_wind <- intersect(station_median_temp$USAF, station_median_wind$USAF)
+coincide_stations_all <- intersect(coincide_stations_temp_wind, station_median_pressure$USAF)
+
+# Print the stations that coincide across all three
+print(coincide_stations_all)
+```
+Yes, some of them coincide.
+```{r}
+# Define the function to calculate Euclidean distance for each station
+euclidean_distance <- function(station, median_values) {
+  sqrt(sum((station - median_values)^2, na.rm = TRUE))
+}
+```
+
+```{r}
+# For each state, calculate the median values of temperature, wind speed, and pressure
+state_medians <- merged_data[, .(median_temp = median(temp, na.rm = TRUE),
+                                 median_wind = median(wind.sp, na.rm = TRUE),
+                                 median_pressure = median(atm.press, na.rm = TRUE)), 
+                             by = STATE]
+
+# Merge the stations with the state median values
+met_state <- merge(merged_data, state_medians, by = "STATE")
+
+# Calculate the Euclidean distance for each station from the state median
+met_state[, dist := mapply(euclidean_distance, 
+                           list(c(temp, wind.sp, atm.press)), 
+                           MoreArgs = list(c(median_temp, median_wind, median_pressure)))]
+
+# For each state, select the station with the minimum Euclidean distance and lowest latitude
+representative_station <- met_state[, .SD[which.min(dist)], by = STATE]
+
+# If there are multiple stations with the same minimum distance, choose the one with the lowest latitude
+representative_station <- representative_station[, .SD[which.min(lat)], by = STATE]
+
+# Print the representative stations for each state
+print(representative_station)
+```
+
+```{r}
+# Calculate the midpoint for each state (assuming latitude and longitude in merged_data)
+state_midpoints <- merged_data[, .(midpoint_lat = mean(lat, na.rm = TRUE),
+                                    midpoint_lon = mean(lon, na.rm = TRUE)),
+                                by = STATE]
+
+# Merge state_midpoints with the original dataset
+met_state_with_midpoints <- merge(merged_data, state_midpoints, by = "STATE")
+
+# Calculate the Euclidean distance between each station and the state midpoint
+met_state_with_midpoints[, dist_to_midpoint := mapply(euclidean_distance, 
+                                                       list(c(lat, lon)),  # Stations' lat and lon
+                                                       MoreArgs = list(c(midpoint_lat, midpoint_lon)))]
+
+# Find the closest station to the midpoint for each state
+closest_station_midpoint <- met_state_with_midpoints[, .SD[which.min(dist_to_midpoint)], by = STATE]
+
+# Combine the representative stations (from previous question) with the closest midpoint stations
+combined_stations <- rbind(representative_station, closest_station_midpoint, fill = TRUE)
+
+# Visualize using leaflet
+leaflet() %>%
+  addTiles() %>%
+  # Add representative stations in one color (e.g., red)
+  addCircleMarkers(data = representative_station, lat = ~lat, lng = ~lon,
+                   color = "red", radius = 5, popup = ~paste("Station:", USAF)) %>%
+  # Add closest stations to midpoint in another color (e.g., blue)
+  addCircleMarkers(data = closest_station_midpoint, lat = ~lat, lng = ~lon,
+                   color = "blue", radius = 5, popup = ~paste("Station:", USAF)) %>%
+  # Optionally add a legend
+  addLegend(position = "bottomright", colors = c("red", "blue"), labels = c("Representative Station", "Closest to Midpoint"))
+```
+
