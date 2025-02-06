@@ -9,12 +9,15 @@ install.packages("dtplyr")
 install.packages("dplyr")
 install.packages("R.utils")
 install.packages("leaflet")
+install.packages("ggplot2")
 ```
 ```{r}
 library(data.table)
 library(dtplyr)
 library(dplyr)
 library(leaflet)
+library(ggplot2)
+library(mgcv)
 ```
 ```{r}
 download.file("https://raw.githubusercontent.com/JSC370/JSC370-2025/main/data/met/met_all.gz", destfile = "met_all.gz")
@@ -166,5 +169,67 @@ summary_table <- merged_data_with_level[, .(
 
 # Print the summary table
 summary_table
+```
+```{r}
+# Remove rows with NA values
+merged_data <- merged_data[!is.na(median_temp) & !is.na(median_wind), ]
+
+# Aggregate the data by station (USAF) to compute median temperature and median wind speed.
+# Adjust column names as needed. Here we assume merged_data has columns 'temp' and 'wind.sp'
+station_medians <- merged_data %>%
+  group_by(USAF) %>%
+  summarise(med_temp = median(temp, na.rm = TRUE),
+            med_wind = median(wind.sp, na.rm = TRUE)) %>%
+  ungroup()
+
+# Inspect the first few rows
+head(station_medians)
+```
+
+```{r}
+# Create a scatterplot of median wind speed (x) vs. median temperature (y)
+# and add both a linear regression line (red) and a smooth (spline) line (blue).
+p <- ggplot(station_medians, aes(x = med_wind, y = med_temp)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "red", 
+              linetype = "dashed", size = 1, 
+              aes(fill = "Linear Model")) +
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cr"), se = TRUE, color = "blue", 
+              size = 1, aes(fill = "Spline Model")) +
+  labs(x = "Median Wind Speed", y = "Median Temperature",
+       title = "Median Temperature vs. Median Wind Speed",
+       subtitle = "Red: Linear Regression | Blue: Cubic Regression Spline") +
+  theme_minimal()
+
+print(p)
+```
+
+```{r}
+# Fit a linear regression model: median temperature as a function of median wind speed
+lm_fit <- lm(med_temp ~ med_wind, data = station_medians)
+lm_summary <- summary(lm_fit)
+print(lm_summary)
+
+# Fit a spline model using gam() from the mgcv package with a cubic regression spline (bs="cr")
+gam_fit <- gam(med_temp ~ s(med_wind, bs = "cr"), data = station_medians)
+gam_summary <- summary(gam_fit)
+print(gam_summary)
+```
+
+```{r}
+# Create prediction values from both models and overlay them on a scatterplot.
+station_medians$lm_pred <- predict(lm_fit, newdata = station_medians)
+station_medians$gam_pred <- predict(gam_fit, newdata = station_medians)
+
+p2 <- ggplot(station_medians, aes(x = med_wind, y = med_temp)) +
+  geom_point(alpha = 0.6) +
+  geom_line(aes(y = lm_pred), color = "red", size = 1, linetype = "dashed") +
+  geom_line(aes(y = gam_pred), color = "blue", size = 1) +
+  labs(x = "Median Wind Speed", y = "Median Temperature",
+       title = "Model Predictions",
+       subtitle = "Red dashed: Linear Model | Blue: Spline Model") +
+  theme_minimal()
+
+print(p2)
 ```
 
