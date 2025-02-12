@@ -120,7 +120,7 @@ before, we will need to coerce the contents (results) to a list using:
     
 ```{r get-abstracts, eval = FALSE}
 # Join the IDs into a single string, separated by commas
-ids_string <- paste(ids_cleaned, collapse = ",")
+ids_string <- paste(ids, collapse = ",")
 
 publications <- GET(
   url   = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
@@ -151,7 +151,7 @@ Write a regular expression that captures all such instances
 ```{r univ-institute-regex, eval = FALSE}
 institution <- str_extract_all(
   publications_txt,
-  "[YOUR REGULAR EXPRESSION HERE]"
+  "University of [A-Za-z ]+|[A-Za-z ]+ Institute of [A-Za-z ]+"
   ) 
 institution <- unlist(institution)
 as.data.frame(table(institution))
@@ -166,8 +166,8 @@ And tabulate the results
 
 ```{r school-department, eval = FALSE}
 schools_and_deps <- str_extract_all(
-  abstracts_txt,
-  "[YOUR REGULAR EXPRESSION HERE]"
+  publications_txt,
+  "School of [A-Za-z ]+|Department of [A-Za-z ]+"
   )
 as.data.frame(table(schools_and_deps))
 ```
