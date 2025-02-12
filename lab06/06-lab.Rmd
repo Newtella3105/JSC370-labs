@@ -69,12 +69,21 @@ The parameters passed to the query are documented [here](https://www.ncbi.nlm.ni
 ```{r papers-covid-toronto, eval=FALSE}
 library(httr)
 query_ids <- GET(
-  url   = "BASELINE URL",
-  query = list("QUERY PARAMETERS")
+  url   = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
+  query = list(
+    db = "pubmed",
+    term = "h5n1 toronto",
+    retmax = 1000
+               )
 )
 
 # Extracting the content of the response of GET
 ids <- httr::content(query_ids)
+
+# Convert the XML response to a character list
+ids_char <- as.character(ids)
+
+print(ids_char)
 ```
 
 The query will return an XML object, we can turn it into a character list to
