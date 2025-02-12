@@ -193,32 +193,40 @@ Now, extract the abstract and article title for each one of the elements of
 take advantage of vectorization of `stringr::str_extract`
 
 ```{r extracting-last-bit, eval = FALSE}
-abstracts <- str_extract(pub_char_list, "[YOUR REGULAR EXPRESSION]")
-abstracts <- str_remove_all(abstracts, "[CLEAN ALL THE HTML TAGS]")
-abstracts <- str_remove_all(abstracts, "[CLEAN ALL EXTRA WHITE SPACE AND NEW LINES]")
+abstracts <- str_extract(pub_char_list, "<AbstractText>(.*?)</AbstractText>")
+abstracts <- str_remove_all(abstracts, "<.*?>")
+abstracts <- str_remove_all(abstracts, "\\s+")
+
+# Count missing abstracts
+sum(is.na(abstracts))
 ```
 
   - How many of these don't have an abstract? 
 
-_Answer here._
+15
 
 Now, the title
 
 ```{r process-titles, eval = FALSE}
-titles <- str_extract(pub_char_list, "[YOUR REGULAR EXPRESSION]")
-titles <- str_remove_all(titles, "[CLEAN ALL THE HTML TAGS]")
+titles <- str_extract(pub_char_list, "<ArticleTitle>(.*?)</ArticleTitle>")
+titles <- str_remove_all(titles, "<.*?>")
+
+# Count missing titles
+sum(is.na(titles))
 ```
 
 - How many of these don't have a title ? 
 
-_Answer here._
+0
 
 Finally, put everything together into a single `data.frame` and use
 `knitr::kable` to print the results
 
 ```{r build-db, eval = FALSE}
 database <- data.frame(
-  "[DATA TO CONCATENATE]"
+  PubMedID = ids,
+  Title = titles,
+  Abstract = abstracts
 )
 knitr::kable(database)
 ```
