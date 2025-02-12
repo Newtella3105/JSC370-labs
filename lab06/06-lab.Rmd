@@ -119,10 +119,16 @@ before, we will need to coerce the contents (results) to a list using:
 **Pro-tip**: If you want `GET()` to take some element literal, wrap it around `I()` (as you would do in a formula in R). For example, the text `"123,456"` is replaced with `"123%2C456"`. If you don't want that behavior, you would need to do the following `I("123,456")`.
     
 ```{r get-abstracts, eval = FALSE}
+# Join the IDs into a single string, separated by commas
+ids_string <- paste(ids_cleaned, collapse = ",")
+
 publications <- GET(
-  url   = "BASELINE URL HERE",
+  url   = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
   query = list(
-    "PARAMETERS OF THE QUERY"
+    db = "pubmed",
+    id = I(ids_string),
+    retmax = 1000,
+    rettype = "abstract"
     )
 )
 
