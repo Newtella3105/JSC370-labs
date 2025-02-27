@@ -4,7 +4,12 @@ output: html_document
 ---
 
 ```{r setup, echo=FALSE}
-knitr::opts_chunk$set(include  = T)
+knitr::opts_chunk$set(
+  echo = TRUE,       # Show code in output
+  message = FALSE,   # Hide package loading messages
+  warning = FALSE,   # Hide warnings
+  fig.show = "hold", # Ensure plots are displayed
+)
 ```
 
 # Learning goals
